@@ -136,11 +136,10 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
             <button
               key={id}
               onClick={() => setSection(id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                section === id
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${section === id
                   ? "bg-primary/15 text-primary"
                   : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
-              }`}
+                }`}
             >
               <Icon className="h-4 w-4" />
               {label}
@@ -382,13 +381,16 @@ function SkillsAdmin() {
     setData((d) => ({ ...d, skills: [...d.skills, newSkill] }));
   };
 
-  const update = async (id: string, patch: Partial<Skill>) => {
-    setData((d) => {
-      const updated = d.skills.map((s) => (s.id === id ? { ...s, ...patch } : s));
-      const skill = updated.find((s) => s.id === id);
-      if (skill) saveSkill(skill);
-      return { ...d, skills: updated };
-    });
+  const update = (id: string, patch: Partial<Skill>) => {
+    setData((d) => ({
+      ...d,
+      skills: d.skills.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    }));
+  };
+
+  const saveSkillToDb = async (id: string) => {
+    const skill = data.skills.find((s) => s.id === id);
+    if (skill && skill.name.trim()) await saveSkill(skill);
   };
 
   const remove = async (id: string) => {
@@ -439,12 +441,16 @@ function SkillsAdmin() {
               placeholder="Skill adı..."
               value={s.name}
               onChange={(e) => update(s.id, { name: e.target.value })}
+              onBlur={() => saveSkillToDb(s.id)}
             />
             <select
               className="w-36 rounded-lg px-3 py-2 text-sm outline-none transition-colors"
               style={{ background: "#2a2a32", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffff" }}
               value={s.category}
-              onChange={(e) => update(s.id, { category: e.target.value as SkillCategory })}
+              onChange={(e) => {
+                update(s.id, { category: e.target.value as SkillCategory });
+                setTimeout(() => saveSkillToDb(s.id), 100);
+              }}
             >
               {CATEGORIES.map((c) => <option key={c} value={c} style={{ background: "#1a1a1f" }}>{c}</option>)}
             </select>
@@ -452,7 +458,10 @@ function SkillsAdmin() {
               className="w-40 rounded-lg px-3 py-2 text-sm outline-none transition-colors"
               style={{ background: "#2a2a32", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffff" }}
               value={s.level}
-              onChange={(e) => update(s.id, { level: e.target.value as SkillLevel })}
+              onChange={(e) => {
+                update(s.id, { level: e.target.value as SkillLevel });
+                setTimeout(() => saveSkillToDb(s.id), 100);
+              }}
             >
               {LEVELS.map((l) => <option key={l} value={l} style={{ background: "#1a1a1f" }}>{l}</option>)}
             </select>
@@ -632,11 +641,10 @@ function IconBtn({ children, onClick, title, danger }: { children: React.ReactNo
     <button
       onClick={onClick}
       title={title}
-      className={`h-8 w-8 grid place-items-center rounded-lg border border-border/60 transition-colors ${
-        danger
+      className={`h-8 w-8 grid place-items-center rounded-lg border border-border/60 transition-colors ${danger
           ? "text-muted-foreground hover:text-red-500 hover:border-red-500/50"
           : "text-muted-foreground hover:text-foreground hover:border-foreground/50"
-      }`}
+        }`}
     >
       {children}
     </button>
