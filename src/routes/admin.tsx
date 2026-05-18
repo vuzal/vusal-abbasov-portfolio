@@ -20,6 +20,12 @@ import {
   isAdminAuthed,
   tryAdminLogin,
   adminLogout,
+  saveAbout,
+  saveContact,
+  saveProject,
+  deleteProject,
+  saveSkill,
+  deleteSkill,
   Project,
   Skill,
   SkillCategory,
@@ -82,17 +88,11 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
           type="password"
           autoFocus
           value={pw}
-          onChange={(e) => {
-            setPw(e.target.value);
-            setError(false);
-          }}
+          onChange={(e) => { setPw(e.target.value); setError(false); }}
           placeholder="Password"
-          className={`mt-6 w-full rounded-lg bg-secondary/40 border px-4 py-3 text-sm outline-none transition-colors ${error ? "border-red-500" : "border-border focus:border-primary"
-            }`}
+          className={`mt-6 w-full rounded-lg bg-secondary/40 border px-4 py-3 text-sm outline-none transition-colors ${error ? "border-red-500" : "border-border focus:border-primary"}`}
         />
-        {error && (
-          <p className="mt-2 text-xs text-red-500">Wrong password. Try again.</p>
-        )}
+        {error && <p className="mt-2 text-xs text-red-500">Wrong password. Try again.</p>}
         <button
           type="submit"
           className="mt-5 w-full rounded-lg bg-primary text-primary-foreground py-3 text-sm font-medium hover:opacity-90 transition-opacity"
@@ -136,10 +136,11 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
             <button
               key={id}
               onClick={() => setSection(id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${section === id
-                ? "bg-primary/15 text-primary"
-                : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
-                }`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                section === id
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
+              }`}
             >
               <Icon className="h-4 w-4" />
               {label}
@@ -148,9 +149,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
         </nav>
         <div className="mt-auto space-y-2">
           <button
-            onClick={() => {
-              if (confirm("Reset all portfolio data to defaults?")) reset();
-            }}
+            onClick={() => { if (confirm("Reset all portfolio data to defaults?")) reset(); }}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:bg-secondary/40 hover:text-foreground transition-colors"
           >
             <RotateCcw className="h-3.5 w-3.5" /> Reset to defaults
@@ -189,7 +188,8 @@ function ProjectsAdmin() {
   const { data, setData } = usePortfolio();
   const [editing, setEditing] = useState<Project | null>(null);
 
-  const save = (p: Project) => {
+  const save = async (p: Project) => {
+    await saveProject(p);
     setData((d) => {
       const exists = d.projects.some((x) => x.id === p.id);
       return {
@@ -200,8 +200,9 @@ function ProjectsAdmin() {
     setEditing(null);
   };
 
-  const remove = (id: string) => {
+  const remove = async (id: string) => {
     if (!confirm("Delete this project?")) return;
+    await deleteProject(id);
     setData((d) => ({ ...d, projects: d.projects.filter((p) => p.id !== id) }));
   };
 
@@ -218,7 +219,6 @@ function ProjectsAdmin() {
           </button>
         }
       />
-
       <div className="mt-6 space-y-3">
         {data.projects.map((p) => (
           <div
@@ -240,11 +240,8 @@ function ProjectsAdmin() {
             </div>
           </div>
         ))}
-        {data.projects.length === 0 && (
-          <p className="text-sm text-muted-foreground">No projects yet.</p>
-        )}
+        {data.projects.length === 0 && <p className="text-sm text-muted-foreground">No projects yet.</p>}
       </div>
-
       {editing && <ProjectModal project={editing} onClose={() => setEditing(null)} onSave={save} />}
     </div>
   );
@@ -253,12 +250,19 @@ function ProjectsAdmin() {
 function ProjectModal({ project, onClose, onSave }: { project: Project; onClose: () => void; onSave: (p: Project) => void }) {
   const [p, setP] = useState<Project>(project);
   const [techInput, setTechInput] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const addTech = () => {
     const v = techInput.trim();
     if (!v) return;
     setP({ ...p, tech: [...p.tech, v] });
     setTechInput("");
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(p);
+    setSaving(false);
   };
 
   return (
@@ -297,9 +301,7 @@ function ProjectModal({ project, onClose, onSave }: { project: Project; onClose:
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTech(); } }}
                 placeholder="Type and press Enter"
               />
-              <button onClick={addTech} className="px-3 rounded-lg border border-border text-sm hover:border-primary">
-                Add
-              </button>
+              <button onClick={addTech} className="px-3 rounded-lg border border-border text-sm hover:border-primary">Add</button>
             </div>
           </Field>
           <Field label="Live URL">
@@ -353,11 +355,11 @@ function ProjectModal({ project, onClose, onSave }: { project: Project; onClose:
         <div className="mt-6 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-border hover:border-foreground/60">Cancel</button>
           <button
-            onClick={() => onSave(p)}
-            disabled={!p.title.trim()}
+            onClick={handleSave}
+            disabled={!p.title.trim() || saving}
             className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground disabled:opacity-40 hover:opacity-90"
           >
-            Save
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
@@ -374,19 +376,24 @@ function SkillsAdmin() {
   const { data, setData } = usePortfolio();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
-  const addSkill = () => {
-    setData((d) => ({
-      ...d,
-      skills: [...d.skills, { id: `s_${Date.now()}`, name: "", category: "Backend", level: "Intermediate" }],
-    }));
+  const addSkill = async () => {
+    const newSkill: Skill = { id: `s_${Date.now()}`, name: "", category: "Backend", level: "Intermediate" };
+    await saveSkill(newSkill);
+    setData((d) => ({ ...d, skills: [...d.skills, newSkill] }));
   };
 
-  const update = (id: string, patch: Partial<Skill>) => {
-    setData((d) => ({ ...d, skills: d.skills.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
+  const update = async (id: string, patch: Partial<Skill>) => {
+    setData((d) => {
+      const updated = d.skills.map((s) => (s.id === id ? { ...s, ...patch } : s));
+      const skill = updated.find((s) => s.id === id);
+      if (skill) saveSkill(skill);
+      return { ...d, skills: updated };
+    });
   };
 
-  const remove = (id: string) => {
+  const remove = async (id: string) => {
     if (!confirm("Delete this skill?")) return;
+    await deleteSkill(id);
     setData((d) => ({ ...d, skills: d.skills.filter((s) => s.id !== id) }));
   };
 
@@ -415,7 +422,6 @@ function SkillsAdmin() {
         }
       />
       <p className="mt-2 text-xs text-muted-foreground">Drag the handle to reorder.</p>
-
       <div className="mt-6 space-y-2">
         {data.skills.map((s, i) => (
           <div
@@ -424,8 +430,7 @@ function SkillsAdmin() {
             onDragStart={() => setDragIndex(i)}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => onDrop(i)}
-            className={`flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-[#101014] ${dragIndex === i ? "opacity-50" : ""
-              }`}
+            className={`flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-[#101014] ${dragIndex === i ? "opacity-50" : ""}`}
           >
             <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
             <input
@@ -454,9 +459,7 @@ function SkillsAdmin() {
             <IconBtn onClick={() => remove(s.id)} danger title="Delete"><Trash2 className="h-4 w-4" /></IconBtn>
           </div>
         ))}
-        {data.skills.length === 0 && (
-          <p className="text-sm text-muted-foreground">No skills yet.</p>
-        )}
+        {data.skills.length === 0 && <p className="text-sm text-muted-foreground">No skills yet.</p>}
       </div>
     </div>
   );
@@ -468,11 +471,15 @@ function AboutAdmin() {
   const { data, setData } = usePortfolio();
   const [a, setA] = useState(data.about);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { setA(data.about); }, [data.about]);
 
-  const save = () => {
+  const save = async () => {
+    setSaving(true);
+    await saveAbout(a);
     setData((d) => ({ ...d, about: a }));
+    setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
@@ -504,8 +511,8 @@ function AboutAdmin() {
           <span className="text-sm">Show "Currently available for work" badge</span>
         </label>
         <div>
-          <button onClick={save} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90">
-            {saved ? <><Check className="h-4 w-4" /> Saved</> : "Save changes"}
+          <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90 disabled:opacity-50">
+            {saved ? <><Check className="h-4 w-4" /> Saved</> : saving ? "Saving..." : "Save changes"}
           </button>
         </div>
       </div>
@@ -519,11 +526,15 @@ function ContactAdmin() {
   const { data, setData } = usePortfolio();
   const [c, setC] = useState(data.contact);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { setC(data.contact); }, [data.contact]);
 
-  const save = () => {
+  const save = async () => {
+    setSaving(true);
+    await saveContact(c);
     setData((d) => ({ ...d, contact: c }));
+    setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
@@ -552,10 +563,7 @@ function ContactAdmin() {
                   <span style={{ color: "#FFD700" }}>✓</span>
                   <span className="text-sm text-white/70">CV yüklənib</span>
                 </div>
-                <button
-                  onClick={() => setC({ ...c, cv: "" })}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                >
+                <button onClick={() => setC({ ...c, cv: "" })} className="text-xs text-red-400 hover:text-red-300 transition-colors">
                   Sil
                 </button>
               </div>
@@ -587,8 +595,8 @@ function ContactAdmin() {
           </div>
         </Field>
         <div>
-          <button onClick={save} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90">
-            {saved ? <><Check className="h-4 w-4" /> Saved</> : "Save changes"}
+          <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90 disabled:opacity-50">
+            {saved ? <><Check className="h-4 w-4" /> Saved</> : saving ? "Saving..." : "Save changes"}
           </button>
         </div>
       </div>
@@ -596,7 +604,7 @@ function ContactAdmin() {
   );
 }
 
-// ---------------- Shared bits ----------------
+// ---------------- Shared ----------------
 
 const inputCls =
   "w-full rounded-lg bg-[#1a1a1f] border border-white/20 px-3 py-2 text-sm outline-none focus:border-primary transition-colors text-white placeholder:text-white/40";
@@ -619,25 +627,16 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
   );
 }
 
-function IconBtn({
-  children,
-  onClick,
-  title,
-  danger,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  title?: string;
-  danger?: boolean;
-}) {
+function IconBtn({ children, onClick, title, danger }: { children: React.ReactNode; onClick: () => void; title?: string; danger?: boolean }) {
   return (
     <button
       onClick={onClick}
       title={title}
-      className={`h-8 w-8 grid place-items-center rounded-lg border border-border/60 transition-colors ${danger
-        ? "text-muted-foreground hover:text-red-500 hover:border-red-500/50"
-        : "text-muted-foreground hover:text-foreground hover:border-foreground/50"
-        }`}
+      className={`h-8 w-8 grid place-items-center rounded-lg border border-border/60 transition-colors ${
+        danger
+          ? "text-muted-foreground hover:text-red-500 hover:border-red-500/50"
+          : "text-muted-foreground hover:text-foreground hover:border-foreground/50"
+      }`}
     >
       {children}
     </button>
