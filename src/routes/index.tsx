@@ -14,18 +14,17 @@ export const Route = createFileRoute("/")({
   component: Index,
   head: () => ({
     meta: [
-      { title: "Ad Soyad — Full-Stack Developer & Designer" },
+      { title: "Vüsal Abbasov — Backend Developer" },
       {
         name: "description",
         content:
-          "Portfolio of Ad Soyad — a full-stack developer and designer crafting premium digital products with motion, detail, and intent.",
+          "Portfolio of Vüsal Abbasov — a backend developer crafting high-performance backend systems and clean digital experiences.",
       },
-      { property: "og:title", content: "Ad Soyad — Portfolio" },
-      { property: "og:description", content: "Premium dark-luxury portfolio. Design, code, motion." },
+      { property: "og:title", content: "Vüsal Abbasov — Portfolio" },
+      { property: "og:description", content: "Premium developer portfolio. Enterprise Java, databases, and modern web architecture." },
     ],
   }),
 });
-
 function Index() {
   return (
     <main className="relative">
