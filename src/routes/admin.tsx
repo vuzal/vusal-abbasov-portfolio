@@ -368,46 +368,66 @@ function ProjectModal({ project, onClose, onSave }: { project: Project; onClose:
 
 // ---------------- Skills ----------------
 
+// ---------------- Skills ----------------
+
 const CATEGORIES: SkillCategory[] = ["Backend", "Database", "DevOps & Tools", "Frontend", "Other"];
 const LEVELS: SkillLevel[] = ["Beginner", "Intermediate", "Advanced", "Expert"];
 
 function SkillsAdmin() {
   const { data, setData } = usePortfolio();
+  // Yerli state yaradırıq ki, sən yadda saxla basana qədər bazaya heç nə getməsin
+  const [skills, setSkills] = useState<Skill[]>(data.skills);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
-  const addSkill = async () => {
+  useEffect(() => {
+    setSkills(data.skills);
+  }, [data.skills]);
+
+  const addSkill = () => {
     const newSkill: Skill = { id: `s_${Date.now()}`, name: "", category: "Backend", level: "Intermediate" };
-    await saveSkill(newSkill);
-    setData((d) => ({ ...d, skills: [...d.skills, newSkill] }));
+    // Yalnız ekranda görünməsi üçün state-ə əlavə edirik, bazaya YOX
+    setSkills([...skills, newSkill]);
   };
 
   const update = (id: string, patch: Partial<Skill>) => {
-    setData((d) => ({
-      ...d,
-      skills: d.skills.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-    }));
-  };
-
-  const saveSkillToDb = async (id: string) => {
-    const skill = data.skills.find((s) => s.id === id);
-    if (skill && skill.name.trim()) await saveSkill(skill);
+    setSkills(skills.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   };
 
   const remove = async (id: string) => {
     if (!confirm("Delete this skill?")) return;
-    await deleteSkill(id);
-    setData((d) => ({ ...d, skills: d.skills.filter((s) => s.id !== id) }));
+    await deleteSkill(id); // Baza tərəfdən silirik
+    const newList = skills.filter((s) => s.id !== id);
+    setSkills(newList);
+    setData((d) => ({ ...d, skills: newList }));
   };
 
   const onDrop = (target: number) => {
     if (dragIndex === null || dragIndex === target) return;
-    setData((d) => {
-      const arr = [...d.skills];
-      const [m] = arr.splice(dragIndex, 1);
-      arr.splice(target, 0, m);
-      return { ...d, skills: arr };
-    });
+    const arr = [...skills];
+    const [m] = arr.splice(dragIndex, 1);
+    arr.splice(target, 0, m);
+    setSkills(arr);
     setDragIndex(null);
+  };
+
+  const saveAll = async () => {
+    setSaving(true);
+    
+    // Yalnız adı yazılmış (boş olmayan) skill-ləri bazaya göndərmək üçün süzürük
+    const validSkills = skills.filter(s => s.name.trim() !== "");
+    
+    for (const s of validSkills) {
+      await saveSkill(s);
+    }
+    
+    setData((d) => ({ ...d, skills: validSkills }));
+    setSkills(validSkills); // Adını yazmadığın boş sətirləri ekrandan da təmizləyirik
+    
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   return (
@@ -423,9 +443,10 @@ function SkillsAdmin() {
           </button>
         }
       />
-      <p className="mt-2 text-xs text-muted-foreground">Drag the handle to reorder.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Drag the handle to reorder. Don't forget to save your changes!</p>
+      
       <div className="mt-6 space-y-2">
-        {data.skills.map((s, i) => (
+        {skills.map((s, i) => (
           <div
             key={s.id}
             draggable
@@ -438,19 +459,15 @@ function SkillsAdmin() {
             <input
               className="flex-1 min-w-0 rounded-lg px-3 py-2 text-sm outline-none transition-colors"
               style={{ background: "#2a2a32", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffff" }}
-              placeholder="Skill adı..."
+              placeholder="Skill adı (məs: React, Node.js)"
               value={s.name}
               onChange={(e) => update(s.id, { name: e.target.value })}
-              onBlur={() => saveSkillToDb(s.id)}
             />
             <select
               className="w-36 rounded-lg px-3 py-2 text-sm outline-none transition-colors"
               style={{ background: "#2a2a32", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffff" }}
               value={s.category}
-              onChange={(e) => {
-                update(s.id, { category: e.target.value as SkillCategory });
-                setTimeout(() => saveSkillToDb(s.id), 100);
-              }}
+              onChange={(e) => update(s.id, { category: e.target.value as SkillCategory })}
             >
               {CATEGORIES.map((c) => <option key={c} value={c} style={{ background: "#1a1a1f" }}>{c}</option>)}
             </select>
@@ -458,17 +475,25 @@ function SkillsAdmin() {
               className="w-40 rounded-lg px-3 py-2 text-sm outline-none transition-colors"
               style={{ background: "#2a2a32", border: "1px solid rgba(255,255,255,0.2)", color: "#ffffff" }}
               value={s.level}
-              onChange={(e) => {
-                update(s.id, { level: e.target.value as SkillLevel });
-                setTimeout(() => saveSkillToDb(s.id), 100);
-              }}
+              onChange={(e) => update(s.id, { level: e.target.value as SkillLevel })}
             >
               {LEVELS.map((l) => <option key={l} value={l} style={{ background: "#1a1a1f" }}>{l}</option>)}
             </select>
             <IconBtn onClick={() => remove(s.id)} danger title="Delete"><Trash2 className="h-4 w-4" /></IconBtn>
           </div>
         ))}
-        {data.skills.length === 0 && <p className="text-sm text-muted-foreground">No skills yet.</p>}
+        {skills.length === 0 && <p className="text-sm text-muted-foreground">No skills yet.</p>}
+      </div>
+
+      {/* Yeni Yadda Saxlama Düyməsi */}
+      <div className="mt-6 flex justify-end">
+        <button 
+          onClick={saveAll} 
+          disabled={saving || skills.length === 0} 
+          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+        >
+          {saved ? <><Check className="h-4 w-4" /> Saved Successfully</> : saving ? "Saving..." : "Save All Skills"}
+        </button>
       </div>
     </div>
   );
